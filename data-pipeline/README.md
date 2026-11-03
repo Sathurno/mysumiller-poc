@@ -44,7 +44,7 @@ Para importar el paquete desde el código fuente sin instalarlo, establece `PYTH
 
 - `reports/data_quality/`: perfil del catálogo completo y del subconjunto de valoraciones, validaciones, errores de parseo y candidatos de posibles duplicados.
 - `reports/summary/eda_metrics.json`: estadísticas descriptivas, completitud, distribución de ratings y frecuencias por usuario/vino, con alcance documentado.
-- `reports/figures/`: histogramas y diagramas de caja de ABV, puntuaciones y ratings por vino/usuario. El notebook los presenta inline; `--show` abre las figuras al ejecutar el CLI en una sesión gráfica.
+- `reports/figures/`: histogramas/diagramas de caja, ratings medios por tipo y país, scatter ABV-rating por vino, heatmap Spearman y pairplot. El notebook los presenta inline; `--show` abre las figuras del CLI en una sesión gráfica.
 - `data/processed/xwines_catalog.parquet`: catálogo normalizado con columnas originales y variables derivadas.
 - `data/interim/xwines_ratings_sample.parquet`: muestra de ratings con columna `source="X-Wines"`.
 
@@ -56,7 +56,7 @@ El catálogo procesado conserva los 17 campos originales, incluidos los IDs, Web
 
 ## Memoria
 
-Ejecuta primero `python -m wine_pipeline.cli all` y después abre `memoria.ipynb` con JupyterLab. El notebook consume informes y figuras generados; no vuelve a recorrer el CSV de 21 millones. En esta versión, las conclusiones de ratings quedan limitadas al subconjunto no aleatorio indicado en cada salida.
+Ejecuta primero `python -m wine_pipeline.cli all` y después abre `memoria.ipynb` con JupyterLab. El notebook consume informes y figuras generados; no vuelve a recorrer el CSV de 21 millones. Los análisis de ratings se limitan a la muestra uniforme de hasta 100.000 filas. Las asociaciones son descriptivas y no controlan la dependencia entre ratings de un mismo usuario.
 
 ## Modelo futuro y trazabilidad
 

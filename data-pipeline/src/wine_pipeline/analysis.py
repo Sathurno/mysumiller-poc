@@ -148,6 +148,170 @@ def ratings_by_wine_category(
     ).reset_index()
 
 
+def build_wine_rating_features(
+    ratings: pd.DataFrame,
+    wines: pd.DataFrame,
+    minimum_ratings: int = 5,
+) -> pd.DataFrame:
+    if wines["WineID"].duplicated().any():
+        raise ValueError("WineID must be unique before joining ratings to the catalog")
+    rating_means = ratings.assign(Rating=pd.to_numeric(ratings["Rating"], errors="coerce"))
+    rating_summary = rating_means.groupby("WineID", dropna=True)["Rating"].agg(
+        MeanRating="mean", RatingCount="count"
+    ).reset_index()
+    catalog_columns = [
+        column for column in ("WineID", "ABV", "Type", "Country", "GrapeCount", "VintageCount")
+        if column in wines.columns
+    ]
+    joined = rating_summary.merge(
+        wines[catalog_columns], on="WineID", how="inner", validate="one_to_one"
+    )
+    return joined.loc[joined["RatingCount"] >= minimum_ratings].reset_index(drop=True)
+
+
+def bivariate_analysis(
+    ratings: pd.DataFrame,
+    wines: pd.DataFrame,
+    wine_features: pd.DataFrame,
+    minimum_category_ratings: int = 20,
+) -> dict[str, object]:
+    abv_ratings = wine_features[["ABV", "MeanRating"]].apply(pd.to_numeric, errors="coerce").dropna()
+    rho = None
+    if len(abv_ratings) >= 2 and abv_ratings.nunique().gt(1).all():
+        rho = float(abv_ratings.corr(method="spearman").loc["ABV", "MeanRating"])
+    return {
+        "abv_vs_mean_rating": {
+            "wine_count": int(len(abv_ratings)),
+            "minimum_ratings_per_wine": int(wine_features["RatingCount"].min()) if len(wine_features) else None,
+            "spearman_rho": rho,
+            "interpretation_scope": "descriptive_association_in_rating_sample",
+        },
+        "rating_by_type": ratings_by_wine_category(
+            ratings, wines, "Type", minimum_category_ratings
+        ).to_dict(orient="records"),
+        "rating_by_country": ratings_by_wine_category(
+            ratings, wines, "Country", minimum_category_ratings
+        ).to_dict(orient="records"),
+    }
+
+
+def multivariate_analysis(wine_features: pd.DataFrame) -> dict[str, object]:
+    columns = [
+        column for column in ("ABV", "GrapeCount", "VintageCount", "MeanRating", "RatingCount")
+        if column in wine_features.columns
+    ]
+    numeric = wine_features[columns].apply(pd.to_numeric, errors="coerce")
+    correlation = numeric.corr(method="spearman", min_periods=2)
+    matrix = {
+        row: {
+            column: (float(value) if pd.notna(value) else None)
+            for column, value in correlation.loc[row].items()
+        }
+        for row in correlation.index
+    }
+    return {
+        "unit_of_analysis": "one_row_per_wine_in_rating_sample",
+        "wine_count": int(len(wine_features)),
+        "features": columns,
+        "minimum_ratings_per_wine": int(wine_features["RatingCount"].min()) if len(wine_features) else None,
+        "spearman_correlation": matrix,
+    }
+
+
+def plot_rating_by_category(
+    summary: pd.DataFrame,
+    category: str,
+    output_path: Path,
+    title: str,
+    top_n: int = 12,
+) -> Path:
+    import matplotlib.pyplot as plt
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    data = summary.nlargest(top_n, "rating_count").sort_values("mean_rating")
+    figure, axis = plt.subplots(figsize=(9, max(4, 0.38 * len(data))), constrained_layout=True)
+    axis.barh(data[category].astype(str), data["mean_rating"], color="#4B8063")
+    for position, row in enumerate(data.itertuples(index=False)):
+        axis.text(row.mean_rating, position, f"  n={row.rating_count}", va="center", fontsize=8)
+    axis.set(title=title, xlabel="Rating medio (escala 1-5)", ylabel=category)
+    axis.set_xlim(0, 5.7)
+    figure.savefig(output_path, dpi=150)
+    plt.close(figure)
+    return output_path
+
+
+def plot_abv_rating_scatter(
+    wine_features: pd.DataFrame,
+    output_path: Path,
+    max_points: int = 5_000,
+    seed: int = 42,
+) -> Path:
+    import matplotlib.pyplot as plt
+
+    data = wine_features[["ABV", "MeanRating", "RatingCount"]].dropna(subset=["ABV", "MeanRating"])
+    if len(data) > max_points:
+        data = data.sample(max_points, random_state=seed)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    figure, axis = plt.subplots(figsize=(8, 5), constrained_layout=True)
+    axis.scatter(data["ABV"], data["MeanRating"], alpha=0.35, s=18, color="#3B719F")
+    axis.set(title="ABV y rating medio por vino", xlabel="ABV (%)", ylabel="Rating medio (escala 1-5)")
+    axis.set_ylim(0.8, 5.2)
+    figure.savefig(output_path, dpi=150)
+    plt.close(figure)
+    return output_path
+
+
+def plot_correlation_heatmap(
+    correlation: pd.DataFrame,
+    output_path: Path,
+) -> Path:
+    import matplotlib.pyplot as plt
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    figure, axis = plt.subplots(figsize=(8, 6), constrained_layout=True)
+    values = correlation.to_numpy(dtype=float)
+    image = axis.imshow(values, cmap="RdBu_r", vmin=-1, vmax=1)
+    labels = correlation.columns.tolist()
+    axis.set_xticks(range(len(labels)), labels=labels, rotation=35, ha="right")
+    axis.set_yticks(range(len(labels)), labels=labels)
+    for row in range(len(labels)):
+        for column in range(len(labels)):
+            value = values[row, column]
+            label = "NA" if np.isnan(value) else f"{value:.2f}"
+            axis.text(column, row, label, ha="center", va="center", fontsize=8)
+    axis.set_title("Correlaciones de Spearman entre atributos por vino")
+    figure.colorbar(image, ax=axis, label="Correlación de Spearman")
+    figure.savefig(output_path, dpi=150)
+    plt.close(figure)
+    return output_path
+
+
+def plot_feature_pairplot(
+    wine_features: pd.DataFrame,
+    output_path: Path,
+    max_points: int = 2_000,
+    seed: int = 42,
+) -> Path:
+    import matplotlib.pyplot as plt
+    from pandas.plotting import scatter_matrix
+
+    columns = [
+        column for column in ("ABV", "GrapeCount", "VintageCount", "MeanRating", "RatingCount")
+        if column in wine_features.columns
+    ]
+    data = wine_features[columns].apply(pd.to_numeric, errors="coerce").dropna()
+    if len(data) > max_points:
+        data = data.sample(max_points, random_state=seed)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    axes = scatter_matrix(data, figsize=(10, 10), diagonal="hist", alpha=0.35, s=12)
+    figure = axes[0, 0].get_figure()
+    figure.suptitle(f"Relaciones entre atributos por vino (n={len(data):,})")
+    figure.tight_layout()
+    figure.savefig(output_path, dpi=150)
+    plt.close(figure)
+    return output_path
+
+
 def plot_outlier_diagnostics(
     frame: pd.DataFrame,
     column: str,

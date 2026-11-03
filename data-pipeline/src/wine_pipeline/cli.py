@@ -3,7 +3,19 @@ import logging
 
 import pandas as pd
 
-from .analysis import catalog_analysis, outlier_examples, plot_outlier_diagnostics, rating_analysis
+from .analysis import (
+    bivariate_analysis,
+    build_wine_rating_features,
+    catalog_analysis,
+    multivariate_analysis,
+    outlier_examples,
+    plot_abv_rating_scatter,
+    plot_correlation_heatmap,
+    plot_feature_pairplot,
+    plot_outlier_diagnostics,
+    plot_rating_by_category,
+    rating_analysis,
+)
 from .cleaning import clean_wines
 from .config import FIGURES_DIR, INTERIM_DIR, PROCESSED_DIR, QUALITY_DIR, RATINGS_FILE, SUMMARY_DIR, WINES_FILE
 from .deduplication import find_duplicate_candidates
@@ -68,14 +80,18 @@ def run_pipeline(command: str, rating_limit: int = 100_000, show: bool = False) 
     if command in {"analyze", "all"}:
         rating_metrics = rating_analysis(cleaned_ratings)
         catalog_metrics = catalog_analysis(cleaned_wines)
-        from .analysis import ratings_by_wine_category
-
+        featured_wines = add_catalog_features(cleaned_wines)
+        wine_rating_features = build_wine_rating_features(cleaned_ratings, featured_wines)
+        bivariate_metrics = bivariate_analysis(cleaned_ratings, featured_wines, wine_rating_features)
+        multivariate_metrics = multivariate_analysis(wine_rating_features)
         category_metrics = {
-            category: ratings_by_wine_category(cleaned_ratings, cleaned_wines, category).to_dict(orient="records")
-            for category in ("Type", "Country")
+            "Type": bivariate_metrics["rating_by_type"],
+            "Country": bivariate_metrics["rating_by_country"],
         }
         write_json({"catalog": catalog_metrics, "ratings_sample": rating_metrics,
                     "ratings_by_category": category_metrics,
+                    "bivariate": bivariate_metrics,
+                    "multivariate": multivariate_metrics,
                     "ratings_scope": sample_scope}, SUMMARY_DIR / "eda_metrics.json")
         candidates = find_duplicate_candidates(cleaned_wines)
         write_frame(candidates, QUALITY_DIR / "wine_duplicate_candidates.csv")
@@ -87,9 +103,21 @@ def run_pipeline(command: str, rating_limit: int = 100_000, show: bool = False) 
         wine_count_figure = plot_outlier_diagnostics(counts, "rating_count", FIGURES_DIR / "sample_ratings_per_wine.png", show=show)
         user_counts = cleaned_ratings.groupby("UserID").size().rename("rating_count").reset_index()
         user_count_figure = plot_outlier_diagnostics(user_counts, "rating_count", FIGURES_DIR / "sample_ratings_per_user.png", show=show)
+        type_summary = pd.DataFrame(bivariate_metrics["rating_by_type"])
+        country_summary = pd.DataFrame(bivariate_metrics["rating_by_country"])
+        type_figure = plot_rating_by_category(type_summary, "Type", FIGURES_DIR / "rating_by_type.png", "Rating por tipo de vino")
+        country_figure = plot_rating_by_category(country_summary, "Country", FIGURES_DIR / "rating_by_country.png", "Rating por país (principales grupos)")
+        abv_rating_figure = plot_abv_rating_scatter(wine_rating_features, FIGURES_DIR / "abv_vs_mean_rating.png")
+        correlation = pd.DataFrame(multivariate_metrics["spearman_correlation"], dtype=float).T
+        correlation_figure = plot_correlation_heatmap(correlation, FIGURES_DIR / "wine_feature_correlation.png")
+        pairplot_figure = plot_feature_pairplot(wine_rating_features, FIGURES_DIR / "wine_feature_pairplot.png")
         write_json({"abv": str(abv_figure), "ratings": str(rating_figure),
                 "ratings_per_wine": str(wine_count_figure),
-                "ratings_per_user": str(user_count_figure)}, SUMMARY_DIR / "figure_manifest.json")
+            "ratings_per_user": str(user_count_figure),
+            "rating_by_type": str(type_figure), "rating_by_country": str(country_figure),
+            "abv_vs_mean_rating": str(abv_rating_figure),
+            "wine_feature_correlation": str(correlation_figure),
+            "wine_feature_pairplot": str(pairplot_figure)}, SUMMARY_DIR / "figure_manifest.json")
         LOGGER.info("Saved EDA results for the full catalog and %s rows from a reproducible rating sample", len(cleaned_ratings))
 
 
