@@ -55,9 +55,10 @@ def validate_ratings(
         result["invalid_rating_count"] = int((numeric.notna() & ~numeric.between(1, 5)).sum())
         result["missing_or_unparseable_rating_count"] = int(numeric.isna().sum())
         result["rating_values"] = sorted(float(value) for value in numeric.dropna().unique())
-        result["half_star_compatible_count"] = int(
-            (numeric.dropna().mod(0.5).abs() > 1e-8).sum()
-        )
+        in_range = numeric.between(1, 5)
+        compatible = numeric.mod(0.5).abs().le(1e-8)
+        result["half_star_compatible_count"] = int((in_range & compatible).sum())
+        result["incompatible_half_star_count"] = int((in_range & ~compatible).sum())
     repeated_key = [column for column in ("UserID", "WineID", "Vintage", "Date") if column in ratings]
     result["repeated_user_wine_vintage_time_rows"] = (
         int(ratings.duplicated(subset=repeated_key, keep=False).sum()) if len(repeated_key) > 1 else 0

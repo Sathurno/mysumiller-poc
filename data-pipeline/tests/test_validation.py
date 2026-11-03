@@ -16,7 +16,8 @@ def test_rating_cleaning_and_validation_reports_bad_values_and_foreign_keys():
     assert report["duplicate_rating_ids"] == 2
     assert report["invalid_rating_count"] == 1
     assert report["unmatched_wine_id_count"] == 1
-    assert report["half_star_compatible_count"] == 0
+    assert report["half_star_compatible_count"] == 2
+    assert report["incompatible_half_star_count"] == 0
 
 
 def test_validation_does_not_mutate_input():

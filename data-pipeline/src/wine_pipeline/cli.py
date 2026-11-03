@@ -47,7 +47,7 @@ def run_pipeline(command: str, rating_limit: int = 100_000, show: bool = False) 
         write_frame(featured_wines, PROCESSED_DIR / "xwines_catalog.parquet")
         write_frame(parse_errors, QUALITY_DIR / "wine_parse_errors.csv")
         cleaned_ratings, date_metrics = clean_ratings(sample_ratings)
-        write_frame(cleaned_ratings, INTERIM_DIR / "xwines_ratings_first_100k.parquet")
+        write_frame(cleaned_ratings, INTERIM_DIR / "xwines_ratings_sample.parquet")
         write_json({"rules": ["trim/collapse whitespace", "parse list fields safely", "preserve IDs and source columns"],
                     "wine_parse_error_count": int(len(parse_errors)), "rating_date_metrics": date_metrics,
                     "rating_scope": sample_scope}, QUALITY_DIR / "cleaning_metrics.json")

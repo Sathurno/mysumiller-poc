@@ -11,6 +11,9 @@ def add_catalog_features(wines: pd.DataFrame) -> pd.DataFrame:
         ).astype("Int64")
     if "Vintages" in featured:
         normalized = featured["Vintages"].map(parse_vintage_list)
+        featured["Vintages"] = normalized.map(
+            lambda value: [str(item) for item in value] if value is not None else None
+        )
         featured["VintageCount"] = normalized.map(
             lambda value: sum(isinstance(item, int) for item in value) if value is not None else pd.NA
         ).astype("Int64")

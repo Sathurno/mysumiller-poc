@@ -9,7 +9,7 @@ Los CSV completos originales se guardan en `data/raw/` y se excluyen de Git. Los
 - `XWines_Full_100K_wines.csv`: `eac2d812b5eb94264f3c4ee1764ccdacf764cdf1c2599c26e3832ed91a4662cc`
 - `XWines_Full_21M_ratings.csv`: `847fb49139b7ebfc92c5745cc34e3efff9febea05e977e4332287afa2ea2ded2`
 
-La fase actual no analiza las 21 millones de valoraciones. Lee de forma acotada las primeras 100.000 filas, sin cargar el fichero completo, para que el flujo sea reproducible y rápido. Este subconjunto no es aleatorio ni representativo: la primera parte del fichero solo contiene ratings IDs 1–100.000 y añade sesgo temporal/ordenado. Cambiar `--rating-limit` permite reducir el límite, pero no convertirlo en muestra aleatoria. El catálogo completo sí se perfila y limpia.
+La fase actual analiza una muestra uniforme reproducible de hasta 100.000 valoraciones. Para seleccionarla, recorre las 21 millones de filas secuencialmente en bloques, pero solo conserva la muestra en memoria; la primera ejecución puede tardar. La muestra queda cacheada y se reutiliza mientras no cambien el CSV, el tamaño solicitado o la semilla. Los resultados de ratings se refieren a esta muestra y no se presentan como agregaciones completas de los 21 millones. El catálogo completo sí se perfila y limpia.
 
 Fuente: X-Wines Dataset 1.0, enero de 2023. Publicación asociada: de Azambuja, R. X., Morais, A. J., & Filipe, V. (2023), “X-Wines: A Wine Dataset for Recommender Systems and Machine Learning”, *Big Data and Cognitive Computing*, 7(1), artículo 20, DOI: https://doi.org/10.3390/bdcc7010020. Verifica las condiciones de licencia y uso comercial antes de integrar estos datos en un producto.
 
@@ -46,7 +46,7 @@ Para importar el paquete desde el código fuente sin instalarlo, establece `PYTH
 - `reports/summary/eda_metrics.json`: estadísticas descriptivas, completitud, distribución de ratings y frecuencias por usuario/vino, con alcance documentado.
 - `reports/figures/`: histogramas y diagramas de caja de ABV, puntuaciones y ratings por vino/usuario. El notebook los presenta inline; `--show` abre las figuras al ejecutar el CLI en una sesión gráfica.
 - `data/processed/xwines_catalog.parquet`: catálogo normalizado con columnas originales y variables derivadas.
-- `data/interim/xwines_ratings_first_100k.parquet`: subset de ratings con columna `source="X-Wines"`.
+- `data/interim/xwines_ratings_sample.parquet`: muestra de ratings con columna `source="X-Wines"`.
 
 Las reglas de limpieza no eliminan vinos ni ratings extremos. Los límites IQR son señales para investigar, no reglas de borrado. Las claves de entidad no se escalan. Los candidatos a duplicado son orientativos y nunca se fusionan automáticamente.
 

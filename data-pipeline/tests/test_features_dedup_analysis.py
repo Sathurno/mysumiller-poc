@@ -2,6 +2,7 @@ import pandas as pd
 
 from wine_pipeline.analysis import iqr_outlier_summary
 from wine_pipeline.deduplication import find_duplicate_candidates
+from wine_pipeline.export import write_frame
 from wine_pipeline.features import add_catalog_features
 
 
@@ -12,7 +13,15 @@ def test_features_preserve_source_fields_and_add_counts():
     assert result.loc[0, "GrapeCount"] == 2
     assert result.loc[0, "VintageCount"] == 1
     assert result.loc[0, "HasNonVintage"]
+    assert result.loc[0, "Vintages"] == ["2020", "N.V."]
     assert "GrapeCount" not in source
+
+
+def test_catalog_with_special_vintages_roundtrips_as_parquet(tmp_path):
+    source = pd.DataFrame({"WineID": [1], "Vintages": [[2020, "N.V."]]})
+    path = write_frame(add_catalog_features(source), tmp_path / "catalog.parquet")
+    result = pd.read_parquet(path)
+    assert list(result.loc[0, "Vintages"]) == ["2020", "N.V."]
 
 
 def test_duplicate_candidates_require_multiple_matching_attributes():
