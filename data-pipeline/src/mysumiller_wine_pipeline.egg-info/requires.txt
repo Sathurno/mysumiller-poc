@@ -1,0 +1,8 @@
+matplotlib>=3.8
+numpy>=1.26
+pandas>=2.1
+pyarrow>=15
+
+[dev]
+jupyterlab>=4.1
+pytest>=8.0

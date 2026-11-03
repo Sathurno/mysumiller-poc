@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mysumiller-wine-pipeline"
+version = "0.1.0"
+description = "Reproducible local data quality and EDA pipeline for X-Wines"
+requires-python = ">=3.10"
+dependencies = [
+  "matplotlib>=3.8",
+  "numpy>=1.26",
+  "pandas>=2.1",
+  "pyarrow>=15",
+]
+
+[project.optional-dependencies]
+dev = ["jupyterlab>=4.1", "pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
